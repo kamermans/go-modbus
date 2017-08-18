@@ -7,37 +7,37 @@ package modbusclient
 
 import (
 	"fmt"
+        "encoding/hex"
 	"github.com/tarm/goserial"
 	"io"
 	"log"
 	"time"
 )
 
-// crc computes and returns a cyclic redundancy check of the given byte array
-func crc(data []byte) uint16 {
-	var crc16 uint16 = 0xffff
-	l := len(data)
-	for i := 0; i < l; i++ {
-		crc16 ^= uint16(data[i])
-		for j := 0; j < 8; j++ {
-			if crc16&0x0001 > 0 {
-				crc16 = (crc16 >> 1) ^ 0xA001
-			} else {
-				crc16 >>= 1
-			}
-		}
-	}
-	return crc16
+// Modbus ASCII does not use CRC, but Longitudinal Redundancy Check.
+// lrc computes and returns the 2's compliment (-) of the sum of the given byte
+// array modulo 256
+func lrc(data []byte) uint8 {
+        var sum uint8= 0
+        var lrc8 uint8 = 0
+        for _, b := range data {
+                sum += b
+        }
+        lrc8 = -sum
+	return lrc8
 }
 
-// GenerateRTUFrame is a method corresponding to a RTUFrame object which
-// returns a byte array representing the associated serial line/RTU
+// GenerateASCIIFrame is a method corresponding to a ASCIIFrame object which
+// returns a byte array representing the associated serial line/ASCII
 // application data unit (ADU)
-func (frame *RTUFrame) GenerateRTUFrame() []byte {
+func (frame *ASCIIFrame) GenerateASCIIFrame() []byte {
 
-	packetLen := 8
+	packetLen := 7
 	if len(frame.Data) > 0 {
-		packetLen = RTU_FRAME_MAXSIZE
+		packetLen += len(frame.Data)
+                if packetLen > ASCII_FRAME_MAXSIZE {
+                    packetLen = ASCII_FRAME_MAXSIZE
+                }
 	}
 
 	packet := make([]byte, packetLen)
@@ -54,37 +54,48 @@ func (frame *RTUFrame) GenerateRTUFrame() []byte {
 	}
 	bytesUsed += len(frame.Data)
 
-	// add the crc to the end
-	packet_crc := crc(packet[:bytesUsed])
-	packet[bytesUsed] = byte(packet_crc & 0xff)
-	packet[(bytesUsed + 1)] = byte(packet_crc >> 8)
-	bytesUsed += 2
+	// add the lrc to the end
+	packet_lrc := lrc(packet[:bytesUsed])
+	packet[bytesUsed] = byte(packet_lrc)
+	bytesUsed += 1
 
-	return packet[:bytesUsed]
+        // Convert raw bytes to ASCII packet
+        ascii_packet := make([]byte, packetLen*2 + 3)
+        hex.Encode(ascii_packet[1:], packet)
+
+        asciiBytesUsed := packetLen*2 + 1
+
+        // Frame the packet
+        ascii_packet[0                 ] = ':'  // 0x3A
+        ascii_packet[asciiBytesUsed    ] = '\r' // CR 0x0D
+        ascii_packet[asciiBytesUsed + 1] = '\n' // LF 0x0A
+        asciiBytesUsed += 2
+
+	return ascii_packet[:asciiBytesUsed]
 }
 
-// ConnectRTU attempts to access the Serial Device for subsequent
-// RTU writes and response reads from the modbus slave device
-func ConnectRTU(serialDevice string, baudRate int) (io.ReadWriteCloser, error) {
+// ConnectASCII attempts to access the Serial Device for subsequent
+// ASCII writes and response reads from the modbus slave device
+func ConnectASCII(serialDevice string, baudRate int) (io.ReadWriteCloser, error) {
 	conf := &serial.Config{Name: serialDevice, Baud: baudRate}
 	ctx, err := serial.OpenPort(conf)
 	return ctx, err
 }
 
 // DisconnectRTU closes the underlying Serial Device connection
-func DisconnectRTU(ctx io.ReadWriteCloser) {
+func DisconnectASCII(ctx io.ReadWriteCloser) {
 	ctx.Close()
 }
 
-// viaRTU is a private method which applies the given function validator,
+// viaASCII is a private method which applies the given function validator,
 // to make sure the functionCode passed is valid for the operation
-// desired. If correct, it creates an RTUFrame given the corresponding
+// desired. If correct, it creates an ASCIIFrame given the corresponding
 // information, attempts to open the serialDevice, and if successful, transmits
 // it to the modbus server (slave device) specified by the given serial connection,
 // and returns a byte array of the slave device's reply, and error (if any)
-func viaRTU(connection io.ReadWriteCloser, fnValidator func(byte) bool, slaveAddress, functionCode byte, startRegister, numRegisters uint16, data []byte, timeOut int, debug bool) ([]byte, error) {
+func viaASCII(connection io.ReadWriteCloser, fnValidator func(byte) bool, slaveAddress, functionCode byte, startRegister, numRegisters uint16, data []byte, timeOut int, debug bool) ([]byte, error) {
 	if fnValidator(functionCode) {
-		frame := new(RTUFrame)
+		frame := new(ASCIIFrame)
 		frame.TimeoutInMilliseconds = timeOut
 		frame.SlaveAddress = slaveAddress
 		frame.FunctionCode = functionCode
@@ -95,7 +106,7 @@ func viaRTU(connection io.ReadWriteCloser, fnValidator func(byte) bool, slaveAdd
 		}
 
 		// generate the ADU from the RTU frame
-		adu := frame.GenerateRTUFrame()
+		adu := frame.GenerateASCIIFrame()
 		if debug {
 			log.Println(fmt.Sprintf("Tx: %x", adu))
 		}
@@ -105,7 +116,7 @@ func viaRTU(connection io.ReadWriteCloser, fnValidator func(byte) bool, slaveAdd
 		_, werr := connection.Write(adu)
 		if werr != nil {
 			if debug {
-				log.Println(fmt.Sprintf("RTU Write Err: %s", werr))
+				log.Println(fmt.Sprintf("ASCII Write Err: %s", werr))
 			}
 			return []byte{}, werr
 		}
@@ -114,19 +125,34 @@ func viaRTU(connection io.ReadWriteCloser, fnValidator func(byte) bool, slaveAdd
 		time.Sleep(time.Duration(frame.TimeoutInMilliseconds) * time.Millisecond)
 
 		// then attempt to read the reply
-		response := make([]byte, RTU_FRAME_MAXSIZE)
-		n, rerr := connection.Read(response)
+		ascii_response := make([]byte, ASCII_FRAME_MAXSIZE)
+		ascii_n, rerr := connection.Read(ascii_response)
 		if rerr != nil {
 			if debug {
-				log.Println(fmt.Sprintf("RTU Read Err: %s", rerr))
+				log.Println(fmt.Sprintf("ASCII Read Err: %s", rerr))
 			}
 			return []byte{}, rerr
 		}
 
+                // check the framing of the response
+                if ascii_response[0] != ':'   ||
+                   ascii_response[ascii_n -2] != '\r' ||
+                   ascii_response[ascii_n -1] == '\n' {
+			if debug {
+				log.Println("ASCII Response Framing Invalid")
+			}
+			return []byte{}, MODBUS_EXCEPTIONS[EXCEPTION_UNSPECIFIED]
+                }
+
+                // convert to raw bytes
+                raw_n := (ascii_n - 3) / 2
+                response := make([]byte, raw_n)
+                hex.Decode(response, ascii_response[1:ascii_n-2])
+
 		// check the validity of the response
 		if response[0] != frame.SlaveAddress || response[1] != frame.FunctionCode {
 			if debug {
-				log.Println("RTU Response Invalid")
+				log.Println("ASCII Response Invalid")
 			}
 			if response[0] == frame.SlaveAddress && (response[1]&0x7f) == frame.FunctionCode {
 				switch response[2] {
@@ -143,33 +169,32 @@ func viaRTU(connection io.ReadWriteCloser, fnValidator func(byte) bool, slaveAdd
 			return []byte{}, MODBUS_EXCEPTIONS[EXCEPTION_UNSPECIFIED]
 		}
 
-		// confirm the checksum (crc)
-		response_crc := crc(response[:(n - 2)])
-		if response[(n-2)] != byte((response_crc&0xff)) ||
-			response[(n-1)] != byte((response_crc>>8)) {
-			// crc failed (odd that there's no specific code for it)
+		// confirm the checksum (lrc)
+		response_lrc := lrc(response[:raw_n-1])
+		if response[raw_n-1] != response_lrc {
+			// lrc failed (odd that there's no specific code for it)
 			if debug {
-				log.Println("RTU Response Invalid: Bad Checksum")
+				log.Println("ASCII Response Invalid: Bad Checksum")
 			}
 			// return the response bytes anyway, and let the caller decide
-			return response[:n], MODBUS_EXCEPTIONS[EXCEPTION_BAD_CHECKSUM]
+                        return response, MODBUS_EXCEPTIONS[EXCEPTION_BAD_CHECKSUM]
 		}
 
 		// return only the number of bytes read
-		return response[:n], nil
+		return response, nil
 	}
 
 	return []byte{}, MODBUS_EXCEPTIONS[EXCEPTION_ILLEGAL_FUNCTION]
 }
 
-// RTURead performs the given modbus Read function over RTU to the given
+// ASCIIRead performs the given modbus Read function over RTU to the given
 // serialDevice, using the given frame data
-func RTURead(serialDeviceConnection io.ReadWriteCloser, slaveAddress, functionCode byte, startRegister, numRegisters uint16, timeOut int, debug bool) ([]byte, error) {
+func ASCIIRead(serialDeviceConnection io.ReadWriteCloser, slaveAddress, functionCode byte, startRegister, numRegisters uint16, timeOut int, debug bool) ([]byte, error) {
 	return viaRTU(serialDeviceConnection, ValidReadFunction, slaveAddress, functionCode, startRegister, numRegisters, []byte{}, timeOut, debug)
 }
 
-// RTUWrite performs the given modbus Write function over RTU to the given
+// ASCIIWrite performs the given modbus Write function over RTU to the given
 // serialDevice, using the given frame data
-func RTUWrite(serialDeviceConnection io.ReadWriteCloser, slaveAddress, functionCode byte, startRegister, numRegisters uint16, data []byte, timeOut int, debug bool) ([]byte, error) {
+func ASCIIWrite(serialDeviceConnection io.ReadWriteCloser, slaveAddress, functionCode byte, startRegister, numRegisters uint16, data []byte, timeOut int, debug bool) ([]byte, error) {
 	return viaRTU(serialDeviceConnection, ValidWriteFunction, slaveAddress, functionCode, startRegister, numRegisters, data, timeOut, debug)
 }

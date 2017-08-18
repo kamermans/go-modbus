@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	MODBUS_PORT       = 502
-	RTU_FRAME_MAXSIZE = 512
-	TCP_FRAME_MAXSIZE = 260
+	MODBUS_PORT         = 502
+	RTU_FRAME_MAXSIZE   = 512
+	ASCII_FRAME_MAXSIZE = 512
+	TCP_FRAME_MAXSIZE   = 260
 
 	FUNCTION_READ_COILS                    = 0x01
 	FUNCTION_READ_DISCRETE_INPUTS          = 0x02
@@ -95,6 +96,15 @@ type TCPFrame struct {
 }
 
 type RTUFrame struct {
+	TimeoutInMilliseconds int
+	SlaveAddress          byte
+	FunctionCode          byte
+	StartRegister         uint16
+	NumberOfRegisters     uint16
+	Data                  []byte
+}
+
+type ASCIIFrame struct {
 	TimeoutInMilliseconds int
 	SlaveAddress          byte
 	FunctionCode          byte
