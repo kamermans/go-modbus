@@ -6,9 +6,9 @@
 package modbusclient
 
 import (
+	"bytes"
+	"encoding/hex"
 	"fmt"
-        "encoding/hex"
-        "bytes"
 	"github.com/tarm/goserial"
 	"io"
 	"log"
@@ -16,19 +16,19 @@ import (
 )
 
 func Lrc(data []byte) uint8 {
-    return lrc(data)
+	return lrc(data)
 }
 
 // Modbus ASCII does not use CRC, but Longitudinal Redundancy Check.
 // lrc computes and returns the 2's compliment (-) of the sum of the given byte
 // array modulo 256
 func lrc(data []byte) uint8 {
-        var sum uint8= 0
-        var lrc8 uint8 = 0
-        for _, b := range data {
-                sum += b
-        }
-        lrc8 = uint8(-int8(sum))
+	var sum uint8 = 0
+	var lrc8 uint8 = 0
+	for _, b := range data {
+		sum += b
+	}
+	lrc8 = uint8(-int8(sum))
 	return lrc8
 }
 
@@ -40,9 +40,9 @@ func (frame *ASCIIFrame) GenerateASCIIFrame() []byte {
 	packetLen := 7
 	if len(frame.Data) > 0 {
 		packetLen += len(frame.Data) + 1
-                if packetLen > ASCII_FRAME_MAXSIZE {
-                    packetLen = ASCII_FRAME_MAXSIZE
-                }
+		if packetLen > ASCII_FRAME_MAXSIZE {
+			packetLen = ASCII_FRAME_MAXSIZE
+		}
 	}
 
 	packet := make([]byte, packetLen)
@@ -64,17 +64,17 @@ func (frame *ASCIIFrame) GenerateASCIIFrame() []byte {
 	packet[bytesUsed] = byte(packet_lrc)
 	bytesUsed += 1
 
-        // Convert raw bytes to ASCII packet
-        ascii_packet := make([]byte, bytesUsed*2 + 3)
-        hex.Encode(ascii_packet[1:], packet)
+	// Convert raw bytes to ASCII packet
+	ascii_packet := make([]byte, bytesUsed*2+3)
+	hex.Encode(ascii_packet[1:], packet)
 
-        asciiBytesUsed := bytesUsed*2 + 1
+	asciiBytesUsed := bytesUsed*2 + 1
 
-        // Frame the packet
-        ascii_packet[0                 ] = ':'  // 0x3A
-        ascii_packet[asciiBytesUsed    ] = '\r' // CR 0x0D
-        ascii_packet[asciiBytesUsed + 1] = '\n' // LF 0x0A
-        asciiBytesUsed += 2
+	// Frame the packet
+	ascii_packet[0] = ':'                 // 0x3A
+	ascii_packet[asciiBytesUsed] = '\r'   // CR 0x0D
+	ascii_packet[asciiBytesUsed+1] = '\n' // LF 0x0A
+	asciiBytesUsed += 2
 
 	return bytes.ToUpper(ascii_packet[:asciiBytesUsed])
 }
@@ -140,21 +140,21 @@ func viaASCII(connection io.ReadWriteCloser, fnValidator func(byte) bool, slaveA
 			return []byte{}, rerr
 		}
 
-                // check the framing of the response
-                if ascii_response[0] != ':'   ||
-                   ascii_response[ascii_n -2] != '\r' ||
-                   ascii_response[ascii_n -1] != '\n' {
+		// check the framing of the response
+		if ascii_response[0] != ':' ||
+			ascii_response[ascii_n-2] != '\r' ||
+			ascii_response[ascii_n-1] != '\n' {
 			if debug {
 				log.Println("ASCII Response Framing Invalid")
-                                log.Println(fmt.Sprintf("%s", ascii_response))
+				log.Println(fmt.Sprintf("%s", ascii_response))
 			}
 			return []byte{}, MODBUS_EXCEPTIONS[EXCEPTION_UNSPECIFIED]
-                }
+		}
 
-                // convert to raw bytes
-                raw_n := (ascii_n - 3) / 2
-                response := make([]byte, raw_n)
-                hex.Decode(response, ascii_response[1:ascii_n-2])
+		// convert to raw bytes
+		raw_n := (ascii_n - 3) / 2
+		response := make([]byte, raw_n)
+		hex.Decode(response, ascii_response[1:ascii_n-2])
 
 		// check the validity of the response
 		if response[0] != frame.SlaveAddress || response[1] != frame.FunctionCode {
@@ -184,7 +184,7 @@ func viaASCII(connection io.ReadWriteCloser, fnValidator func(byte) bool, slaveA
 				log.Println("ASCII Response Invalid: Bad Checksum")
 			}
 			// return the response bytes anyway, and let the caller decide
-                        return response, MODBUS_EXCEPTIONS[EXCEPTION_BAD_CHECKSUM]
+			return response, MODBUS_EXCEPTIONS[EXCEPTION_BAD_CHECKSUM]
 		}
 
 		// return only the number of bytes read
