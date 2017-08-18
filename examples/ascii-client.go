@@ -41,7 +41,6 @@ func main() {
 
 		// turn on the debug trace option, to see what is being transmitted
 		trace := true
-                fmt.Println(serialPort, baudRate)
 		ctx, cerr := modbusclient.ConnectASCII(serialPort, baudRate)
 		if cerr != nil {
 			log.Println(fmt.Sprintf("ASCII Connection Err: %s", cerr))
