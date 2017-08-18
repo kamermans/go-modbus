@@ -1,6 +1,6 @@
-// Package modbusclient provides modbus Serial Line/RTU and TCP/IP access
+// Package modbusclient provides modbus Serial Line/ASCII and TCP/IP access
 // for client (master) applications to communicate with server (slave)
-// devices. Logic specifically in this file implements the Serial Line/RTU
+// devices. Logic specifically in this file implements the Serial Line/ASCII
 // protocol.
 
 package modbusclient
@@ -8,11 +8,16 @@ package modbusclient
 import (
 	"fmt"
         "encoding/hex"
+        "bytes"
 	"github.com/tarm/goserial"
 	"io"
 	"log"
 	"time"
 )
+
+func Lrc(data []byte) uint8 {
+    return lrc(data)
+}
 
 // Modbus ASCII does not use CRC, but Longitudinal Redundancy Check.
 // lrc computes and returns the 2's compliment (-) of the sum of the given byte
@@ -23,7 +28,7 @@ func lrc(data []byte) uint8 {
         for _, b := range data {
                 sum += b
         }
-        lrc8 = -sum
+        lrc8 = uint8(-int8(sum))
 	return lrc8
 }
 
@@ -34,7 +39,7 @@ func (frame *ASCIIFrame) GenerateASCIIFrame() []byte {
 
 	packetLen := 7
 	if len(frame.Data) > 0 {
-		packetLen += len(frame.Data)
+		packetLen += len(frame.Data) + 1
                 if packetLen > ASCII_FRAME_MAXSIZE {
                     packetLen = ASCII_FRAME_MAXSIZE
                 }
@@ -60,10 +65,10 @@ func (frame *ASCIIFrame) GenerateASCIIFrame() []byte {
 	bytesUsed += 1
 
         // Convert raw bytes to ASCII packet
-        ascii_packet := make([]byte, packetLen*2 + 3)
+        ascii_packet := make([]byte, bytesUsed*2 + 3)
         hex.Encode(ascii_packet[1:], packet)
 
-        asciiBytesUsed := packetLen*2 + 1
+        asciiBytesUsed := bytesUsed*2 + 1
 
         // Frame the packet
         ascii_packet[0                 ] = ':'  // 0x3A
@@ -71,7 +76,7 @@ func (frame *ASCIIFrame) GenerateASCIIFrame() []byte {
         ascii_packet[asciiBytesUsed + 1] = '\n' // LF 0x0A
         asciiBytesUsed += 2
 
-	return ascii_packet[:asciiBytesUsed]
+	return bytes.ToUpper(ascii_packet[:asciiBytesUsed])
 }
 
 // ConnectASCII attempts to access the Serial Device for subsequent
@@ -82,7 +87,7 @@ func ConnectASCII(serialDevice string, baudRate int) (io.ReadWriteCloser, error)
 	return ctx, err
 }
 
-// DisconnectRTU closes the underlying Serial Device connection
+// DisconnectASCII closes the underlying Serial Device connection
 func DisconnectASCII(ctx io.ReadWriteCloser) {
 	ctx.Close()
 }
@@ -105,10 +110,11 @@ func viaASCII(connection io.ReadWriteCloser, fnValidator func(byte) bool, slaveA
 			frame.Data = data
 		}
 
-		// generate the ADU from the RTU frame
+		// generate the ADU from the ASCII frame
 		adu := frame.GenerateASCIIFrame()
 		if debug {
 			log.Println(fmt.Sprintf("Tx: %x", adu))
+			fmt.Println(fmt.Sprintf("Tx: %s", adu))
 		}
 
 		// transmit the ADU to the slave device via the
@@ -137,9 +143,10 @@ func viaASCII(connection io.ReadWriteCloser, fnValidator func(byte) bool, slaveA
                 // check the framing of the response
                 if ascii_response[0] != ':'   ||
                    ascii_response[ascii_n -2] != '\r' ||
-                   ascii_response[ascii_n -1] == '\n' {
+                   ascii_response[ascii_n -1] != '\n' {
 			if debug {
 				log.Println("ASCII Response Framing Invalid")
+                                log.Println(fmt.Sprintf("%s", ascii_response))
 			}
 			return []byte{}, MODBUS_EXCEPTIONS[EXCEPTION_UNSPECIFIED]
                 }
@@ -187,14 +194,14 @@ func viaASCII(connection io.ReadWriteCloser, fnValidator func(byte) bool, slaveA
 	return []byte{}, MODBUS_EXCEPTIONS[EXCEPTION_ILLEGAL_FUNCTION]
 }
 
-// ASCIIRead performs the given modbus Read function over RTU to the given
+// ASCIIRead performs the given modbus Read function over ASCII to the given
 // serialDevice, using the given frame data
 func ASCIIRead(serialDeviceConnection io.ReadWriteCloser, slaveAddress, functionCode byte, startRegister, numRegisters uint16, timeOut int, debug bool) ([]byte, error) {
-	return viaRTU(serialDeviceConnection, ValidReadFunction, slaveAddress, functionCode, startRegister, numRegisters, []byte{}, timeOut, debug)
+	return viaASCII(serialDeviceConnection, ValidReadFunction, slaveAddress, functionCode, startRegister, numRegisters, []byte{}, timeOut, debug)
 }
 
-// ASCIIWrite performs the given modbus Write function over RTU to the given
+// ASCIIWrite performs the given modbus Write function over ASCII to the given
 // serialDevice, using the given frame data
 func ASCIIWrite(serialDeviceConnection io.ReadWriteCloser, slaveAddress, functionCode byte, startRegister, numRegisters uint16, data []byte, timeOut int, debug bool) ([]byte, error) {
-	return viaRTU(serialDeviceConnection, ValidWriteFunction, slaveAddress, functionCode, startRegister, numRegisters, data, timeOut, debug)
+	return viaASCII(serialDeviceConnection, ValidWriteFunction, slaveAddress, functionCode, startRegister, numRegisters, data, timeOut, debug)
 }

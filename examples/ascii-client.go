@@ -3,8 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/dpapathanasiou/go-modbus"
 	"log"
+
+	"github.com/AdamSLevy/go-modbus"
 )
 
 func main() {
@@ -40,13 +41,14 @@ func main() {
 
 		// turn on the debug trace option, to see what is being transmitted
 		trace := true
-		ctx, cerr := modbusclient.ConnectRTU(serialPort, baudRate)
+                fmt.Println(serialPort, baudRate)
+		ctx, cerr := modbusclient.ConnectASCII(serialPort, baudRate)
 		if cerr != nil {
-			log.Println(fmt.Sprintf("RTU Connection Err: %s", cerr))
+			log.Println(fmt.Sprintf("ASCII Connection Err: %s", cerr))
 		} else {
 			// attempt to read the [startAddr] address register on
 			// slave device number [slaveDevice] via the [serialDevice]
-			readResult, readErr := modbusclient.RTURead(ctx, byte(slaveDevice), modbusclient.FUNCTION_READ_HOLDING_REGISTERS, uint16(startAddr), uint16(numBytes), responsePause, trace)
+			readResult, readErr := modbusclient.ASCIIRead(ctx, byte(slaveDevice), modbusclient.FUNCTION_READ_HOLDING_REGISTERS, uint16(startAddr), uint16(numBytes), responsePause, trace)
 			if readErr != nil {
 				log.Println(readErr)
 			} else {
@@ -73,12 +75,12 @@ func main() {
 					}
 				}
 			}
-			modbusclient.DisconnectRTU(ctx)
+			modbusclient.DisconnectASCII(ctx)
 		}
 		/*
 			// attempt to read the [startAddr] address register on
 			// slave device number [slaveDevice] via the [serialDevice]
-			readResult, readErr := modbusclient.RTURead(serialPort, byte(slaveDevice), modbusclient.FUNCTION_READ_HOLDING_REGISTERS, uint16(startAddr), uint16(numBytes), baudRate, responsePause, trace)
+			readResult, readErr := modbusclient.ASCIIRead(serialPort, byte(slaveDevice), modbusclient.FUNCTION_READ_HOLDING_REGISTERS, uint16(startAddr), uint16(numBytes), baudRate, responsePause, trace)
 			if readErr != nil {
 				log.Println(readErr)
 			}
