@@ -2,7 +2,7 @@
 
 ## About
 
-This [Go](http://golang.org/) package provides [Modbus](http://en.wikipedia.org/wiki/Modbus) access for client (master) applications to communicate with server (slave) devices, over both [TCP/IP](http://www.modbus.org/docs/Modbus_Messaging_Implementation_Guide_V1_0b.pdf) and [Serial Line/RTU](http://www.modbus.org/docs/Modbus_over_serial_line_V1_02.pdf) frame protocols.
+This [Go](http://golang.org/) package provides [Modbus](http://en.wikipedia.org/wiki/Modbus) access for client (master) applications to communicate with server (slave) devices, over both [TCP/IP](http://www.modbus.org/docs/Modbus_Messaging_Implementation_Guide_V1_0b.pdf) and [Serial Line/RTU/ASCII](http://www.modbus.org/docs/Modbus_over_serial_line_V1_02.pdf) frame protocols.
 
 Note that in modbus terminology, _client_ refers to the __master__ application or device, and the _server_ is the __slave__ waiting to respond to instructions, as shown in this transaction diagram:
 
@@ -22,10 +22,11 @@ go get github.com/dpapathanasiou/go-modbus
 Next, build and run the examples:
 
  * [rtu-client.go](examples/rtu-client.go) for an RTU example
+ * [ascii-client.go](examples/ascii-client.go) for an ASCII example
  * [tcp-client.go](examples/tcp-client.go) for a TCP/IP example
 
 
-### Enabling the USB Serial Port adapter (RS-232) for RTU Access
+### Enabling the USB Serial Port adapter (RS-232) for RTU/ASCII Access
 
 Slave devices which have [USB](http://en.wikipedia.org/wiki/Usb) ports for RTU access will not work immediately upon hot-plugging into a master computer.
 
@@ -66,6 +67,7 @@ $ sudo dmesg | tail
 - [Modbus Interface Tutorial](http://www.lammertbies.nl/comm/info/modbus.html)
 - [Modbus TCP/IP Overview](http://www.rtaautomation.com/modbustcp/)
 - [Modbus RTU Protocol Overview](http://www.rtaautomation.com/modbusrtu/)
+- [Modbus ASCII Protocol Overview](http://www.simplymodbus.ca/ASCII.htm)
 
 ## Acknowledgements
 - [Lubia Yang](http://www.lubia.me) for the [original modbus code](https://github.com/lubia/modbus) in Go
