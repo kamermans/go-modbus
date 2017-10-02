@@ -34,35 +34,35 @@ For master devices running linux, the USB serial port adapter must be explicitly
 
 1. Immediately after plugging in the serial port USB, use <tt>dmesg</tt> to find the vendor and product ID numbers:
 
-   ```sh
+```sh
 $ sudo dmesg | tail
 ```
 
-   There should be a line which looks like this:
+There should be a line which looks like this:
 	
-   ````sh
+````sh
 [  556.572417] usb 3-1: New USB device found, idVendor=04d8, idProduct=000c
 ```
 
 2. Use the <tt>usbserial</tt> linux kernel module to enable it, using the same vendor and product ID numbers from the dmesg output:
 
-   ```sh
+```sh
 $ sudo modprobe usbserial vendor=0x04d8 product=0x000c
 ```
 
 3. Confirm that the serial port is attached to a specific tty device file:
 
-   ```sh
+```sh
 $ sudo dmesg | tail
 ```
 
-   There should now be a line like this:
+There should now be a line like this:
    
-   ```sh
+```sh
 [ 2134.866724] usb 3-1: generic converter now attached to ttyUSB0
 ```
 
-   which means that the serial port is now programmatically accessible via <tt>/dev/ttyUSB0</tt>
+which means that the serial port is now programmatically accessible via <tt>/dev/ttyUSB0</tt>
 
 ## References
 - [Modbus Technical Specifications](http://www.modbus.org/specs.php)
