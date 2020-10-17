@@ -3,8 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/dpapathanasiou/go-modbus"
 	"log"
+
+	"github.com/kamermans/modbusclient"
 )
 
 func main() {

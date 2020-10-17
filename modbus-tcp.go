@@ -69,7 +69,7 @@ func DisconnectTCP(conn net.Conn) {
 func (frame *TCPFrame) TransmitAndReceive(conn net.Conn) ([]byte, error) {
 	adu := frame.GenerateTCPFrame() // generate the ADU
 	if frame.DebugTrace {
-		log.Println(fmt.Sprintf("Tx: %x", adu))
+		log.Printf("Tx: %x", adu)
 	}
 
 	conn.SetDeadline(time.Now().Add(time.Duration(frame.TimeoutInMilliseconds) * time.Millisecond))

@@ -9,10 +9,10 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
-	"github.com/tarm/goserial"
-	"io"
 	"log"
 	"time"
+
+	"github.com/tarm/serial"
 )
 
 func Lrc(data []byte) uint8 {
@@ -81,14 +81,14 @@ func (frame *ASCIIFrame) GenerateASCIIFrame() []byte {
 
 // ConnectASCII attempts to access the Serial Device for subsequent
 // ASCII writes and response reads from the modbus slave device
-func ConnectASCII(serialDevice string, baudRate int) (io.ReadWriteCloser, error) {
+func ConnectASCII(serialDevice string, baudRate int) (*serial.Port, error) {
 	conf := &serial.Config{Name: serialDevice, Baud: baudRate}
 	ctx, err := serial.OpenPort(conf)
 	return ctx, err
 }
 
 // DisconnectASCII closes the underlying Serial Device connection
-func DisconnectASCII(ctx io.ReadWriteCloser) {
+func DisconnectASCII(ctx *serial.Port) {
 	ctx.Close()
 }
 
@@ -98,7 +98,7 @@ func DisconnectASCII(ctx io.ReadWriteCloser) {
 // information, attempts to open the serialDevice, and if successful, transmits
 // it to the modbus server (slave device) specified by the given serial connection,
 // and returns a byte array of the slave device's reply, and error (if any)
-func viaASCII(connection io.ReadWriteCloser, fnValidator func(byte) bool, slaveAddress, functionCode byte, startRegister, numRegisters uint16, data []byte, timeOut int, debug bool) ([]byte, error) {
+func viaASCII(connection *serial.Port, fnValidator func(byte) bool, slaveAddress, functionCode byte, startRegister, numRegisters uint16, data []byte, timeOut int, debug bool) ([]byte, error) {
 	if fnValidator(functionCode) {
 		frame := new(ASCIIFrame)
 		frame.TimeoutInMilliseconds = timeOut
@@ -113,8 +113,8 @@ func viaASCII(connection io.ReadWriteCloser, fnValidator func(byte) bool, slaveA
 		// generate the ADU from the ASCII frame
 		adu := frame.GenerateASCIIFrame()
 		if debug {
-			log.Println(fmt.Sprintf("Tx: %x", adu))
-			fmt.Println(fmt.Sprintf("Tx: %s", adu))
+			log.Printf("Tx: %x", adu)
+			fmt.Printf("Tx: %s\n", adu)
 		}
 
 		// transmit the ADU to the slave device via the
@@ -122,7 +122,7 @@ func viaASCII(connection io.ReadWriteCloser, fnValidator func(byte) bool, slaveA
 		_, werr := connection.Write(adu)
 		if werr != nil {
 			if debug {
-				log.Println(fmt.Sprintf("ASCII Write Err: %s", werr))
+				log.Printf("ASCII Write Err: %s", werr)
 			}
 			return []byte{}, werr
 		}
@@ -135,7 +135,7 @@ func viaASCII(connection io.ReadWriteCloser, fnValidator func(byte) bool, slaveA
 		ascii_n, rerr := connection.Read(ascii_response)
 		if rerr != nil {
 			if debug {
-				log.Println(fmt.Sprintf("ASCII Read Err: %s", rerr))
+				log.Printf("ASCII Read Err: %s", rerr)
 			}
 			return []byte{}, rerr
 		}
@@ -146,7 +146,7 @@ func viaASCII(connection io.ReadWriteCloser, fnValidator func(byte) bool, slaveA
 			ascii_response[ascii_n-1] != '\n' {
 			if debug {
 				log.Println("ASCII Response Framing Invalid")
-				log.Println(fmt.Sprintf("%s", ascii_response))
+				log.Printf("%s", ascii_response)
 			}
 			return []byte{}, MODBUS_EXCEPTIONS[EXCEPTION_UNSPECIFIED]
 		}
@@ -196,12 +196,12 @@ func viaASCII(connection io.ReadWriteCloser, fnValidator func(byte) bool, slaveA
 
 // ASCIIRead performs the given modbus Read function over ASCII to the given
 // serialDevice, using the given frame data
-func ASCIIRead(serialDeviceConnection io.ReadWriteCloser, slaveAddress, functionCode byte, startRegister, numRegisters uint16, timeOut int, debug bool) ([]byte, error) {
+func ASCIIRead(serialDeviceConnection *serial.Port, slaveAddress, functionCode byte, startRegister, numRegisters uint16, timeOut int, debug bool) ([]byte, error) {
 	return viaASCII(serialDeviceConnection, ValidReadFunction, slaveAddress, functionCode, startRegister, numRegisters, []byte{}, timeOut, debug)
 }
 
 // ASCIIWrite performs the given modbus Write function over ASCII to the given
 // serialDevice, using the given frame data
-func ASCIIWrite(serialDeviceConnection io.ReadWriteCloser, slaveAddress, functionCode byte, startRegister, numRegisters uint16, data []byte, timeOut int, debug bool) ([]byte, error) {
+func ASCIIWrite(serialDeviceConnection *serial.Port, slaveAddress, functionCode byte, startRegister, numRegisters uint16, data []byte, timeOut int, debug bool) ([]byte, error) {
 	return viaASCII(serialDeviceConnection, ValidWriteFunction, slaveAddress, functionCode, startRegister, numRegisters, data, timeOut, debug)
 }
