@@ -87,6 +87,10 @@ func (frame *TCPFrame) TransmitAndReceive(conn net.Conn) ([]byte, error) {
 		return []byte{}, err
 	}
 
+	if frame.DebugTrace {
+		log.Printf("Rx: %x", response[:n])
+	}
+
 	// return only the number of bytes read
 	return response[:n], nil
 }

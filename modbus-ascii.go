@@ -140,6 +140,10 @@ func viaASCII(connection *serial.Port, fnValidator func(byte) bool, slaveAddress
 			return []byte{}, rerr
 		}
 
+		if debug {
+			log.Printf("Rx (hex): %x", ascii_response[:ascii_n])
+		}
+
 		// check the framing of the response
 		if ascii_response[0] != ':' ||
 			ascii_response[ascii_n-2] != '\r' ||
@@ -155,6 +159,10 @@ func viaASCII(connection *serial.Port, fnValidator func(byte) bool, slaveAddress
 		raw_n := (ascii_n - 3) / 2
 		response := make([]byte, raw_n)
 		hex.Decode(response, ascii_response[1:ascii_n-2])
+
+		if debug {
+			log.Printf("Rx (ascii): %s", response)
+		}
 
 		// check the validity of the response
 		if response[0] != frame.SlaveAddress || response[1] != frame.FunctionCode {

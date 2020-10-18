@@ -144,6 +144,10 @@ func viaRTU(connection *serial.Port, fnValidator func(byte) bool, slaveAddress, 
 			return []byte{}, rerr
 		}
 
+		if debug {
+			log.Printf("Rx: %x", response[:n])
+		}
+
 		// check the validity of the response
 		if response[0] != frame.SlaveAddress || response[1] != frame.FunctionCode {
 			if debug {
