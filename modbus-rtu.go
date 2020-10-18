@@ -86,6 +86,12 @@ func ConnectRTU(serialDevice string, baudRate int) (*serial.Port, error) {
 	return ctx, err
 }
 
+// ConnectRTUWithConfig is like ConnectRTU, but lets you pass a custom config to serial.OpenPort()
+func ConnectRTUWithConfig(conf *serial.Config) (*serial.Port, error) {
+	ctx, err := serial.OpenPort(conf)
+	return ctx, err
+}
+
 // DisconnectRTU closes the underlying Serial Device connection
 func DisconnectRTU(ctx *serial.Port) {
 	ctx.Close()
