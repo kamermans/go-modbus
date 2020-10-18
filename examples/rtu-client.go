@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/kamermans/modbusclient"
+	modbusclient "github.com/kamermans/go-modbus"
 )
 
 func main() {
